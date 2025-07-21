@@ -4,21 +4,7 @@
 
 This project builds a deep learning model using an LSTM (Long Short-Term Memory) neural network to predict the closing prices of Apple Inc. (AAPL) stock. The model is trained on historical stock data and learns temporal patterns to make future price predictions.
 
----
 
-## 🗂️ Table of Contents
-- [Overview](#overview)
-- [Data Source](#data-source)
-- [Preprocessing & Cleaning](#preprocessing--cleaning)
-- [Train-Test Split](#train-test-split)
-- [MinMax Scaling](#minmax-scaling)
-- [Model Architecture](#model-architecture)
-- [Training](#training)
-- [Results & Predictions](#results--predictions)
-- [Future Improvements](#future-improvements)
-- [How to Run](#how-to-run)
-
----
 
 ## 📌 Overview
 
