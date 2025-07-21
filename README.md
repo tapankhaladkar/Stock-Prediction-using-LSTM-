@@ -48,14 +48,8 @@ Stock market prices are influenced by historical trends and exhibit time series 
 
 ## 🧠 Model Architecture
 
-Built using **Keras** with the following architecture:
+Built using **Keras** with the following architecture.
 
-```python
-model = Sequential()
-model.add(LSTM(units=50, activation='relu', return_sequences=True, input_shape=(60, 1)))
-model.add(LSTM(units=50, activation='relu'))
-model.add(Dense(units=1))
-'''
 
 Two LSTM layers: Stacked to capture complex temporal dependencies.
 	•	📤 One Dense output layer: Outputs a single predicted closing price.
