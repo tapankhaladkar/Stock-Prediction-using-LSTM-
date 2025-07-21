@@ -70,7 +70,8 @@ The model was trained on normalized 60-day historical price windows.
 | Testing  | 213.42 |
 
 
-🔍 Interpretation:
+### Interpretation:
+
 	•	The RMSE on the training data is lower than on the test data, which is expected.
 	•	The gap between training and testing RMSE suggests some degree of overfitting.
 	•	Despite this, the model still captures the overall trend and price trajectory of Apple stock.
