@@ -1,8 +1,4 @@
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-filterwarnings = [
-    # ARIMA on near-unit-root log prices routinely falls back to zero start parameters; benign.
-    "ignore:Non-stationary starting autoregressive parameters:statsmodels.tools.sm_exceptions.EstimationWarning",
-    "ignore:Non-invertible starting MA parameters:statsmodels.tools.sm_exceptions.EstimationWarning",
-]
+markers = ["slow: trains several small LSTMs (tens of seconds); deselect with -m 'not slow'"]

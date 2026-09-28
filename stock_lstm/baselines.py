@@ -7,6 +7,8 @@ daily stock prices.
 """
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pandas as pd
 
@@ -29,7 +31,12 @@ def arima_one_step(prices: pd.Series, n_train: int, order: tuple[int, int, int] 
     if not 10 < n_train < len(prices):
         raise ValueError("n_train must leave at least one out-of-sample day and enough history to fit")
     log_p = np.log(prices.to_numpy(dtype=float))
-    fitted = ARIMA(log_p[:n_train], order=order).fit()
+    with warnings.catch_warnings():
+        # Near-unit-root log prices routinely make statsmodels fall back to zero start
+        # parameters; that is expected and harmless. Other warnings still surface.
+        warnings.filterwarnings("ignore", message="Non-stationary starting autoregressive parameters")
+        warnings.filterwarnings("ignore", message="Non-invertible starting MA parameters")
+        fitted = ARIMA(log_p[:n_train], order=order).fit()
     rolled = fitted.append(log_p[n_train:], refit=False)
     one_step = rolled.predict(start=n_train, end=len(prices) - 1, dynamic=False)
     out = pd.Series(np.nan, index=prices.index, name=f"ARIMA{order}")
