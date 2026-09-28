@@ -59,8 +59,11 @@ def session():
 
 
 @pytest.fixture(autouse=True)
-def _no_ambient_key(monkeypatch):
+def _no_ambient_key(monkeypatch, tmp_path):
+    """No test may see a real key: drop the env var and run from an empty directory so a
+    developer's own .env (git-ignored, in the repo root) is not picked up either."""
     monkeypatch.delenv("TIINGO_API_KEY", raising=False)
+    monkeypatch.chdir(tmp_path)
 
 
 def write_synthetic_tiingo_cache(path, start="2015-01-01", end="2025-09-30", split_date="2020-08-31", seed=42):

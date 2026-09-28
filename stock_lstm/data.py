@@ -22,9 +22,41 @@ API_KEY_VAR = "TIINGO_API_KEY"
 MAX_ABS_DAILY_LOG_RETURN = 0.4
 
 
+def _read_dotenv(path: str | Path = ".env") -> dict[str, str]:
+    """Minimal ``.env`` reader: ``NAME=value`` lines, optional ``export``, quotes and comments.
+
+    Kept dependency-free on purpose. Values are returned, never logged or copied into
+    ``os.environ``.
+    """
+    values: dict[str, str] = {}
+    try:
+        text = Path(path).read_text(encoding="utf-8")
+    except OSError:
+        return values
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        if line.startswith("export "):
+            line = line[len("export "):].lstrip()
+        name, _, value = line.partition("=")
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        else:
+            value = value.split(" #", 1)[0].strip()      # trailing comment on an unquoted value
+        values[name.strip()] = value
+    return values
+
+
 def get_api_key(api_key: str | None = None) -> str:
-    """Return the Tiingo key from the argument, the environment, or a Colab secret."""
-    key = api_key or os.environ.get(API_KEY_VAR)
+    """Return the Tiingo key.
+
+    Lookup order: the ``api_key`` argument, the ``TIINGO_API_KEY`` environment variable, a
+    ``TIINGO_API_KEY=...`` line in ``.env`` in the current directory (git-ignored), then a
+    Colab secret. An empty value counts as not set.
+    """
+    key = api_key or os.environ.get(API_KEY_VAR) or _read_dotenv().get(API_KEY_VAR)
     if not key:
         try:  # Colab: Secrets panel (key icon in the left sidebar)
             from google.colab import userdata  # type: ignore
@@ -34,8 +66,9 @@ def get_api_key(api_key: str | None = None) -> str:
             key = None
     if not key:
         raise RuntimeError(
-            f"No Tiingo API key found. Set the {API_KEY_VAR} environment variable "
-            "(or add it as a Colab secret). Free key: https://www.tiingo.com/account/api/token"
+            f"No Tiingo API key found. Set the {API_KEY_VAR} environment variable, put "
+            f"{API_KEY_VAR}=... in a .env file (see .env.example), or add it as a Colab secret. "
+            "Free key: https://www.tiingo.com/account/api/token"
         )
     return key
 
