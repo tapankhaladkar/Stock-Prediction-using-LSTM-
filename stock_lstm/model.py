@@ -59,6 +59,14 @@ class FittedModel:
         X, _, _ = make_windows(z, self.window, start, stop)
         return self.scaler.inverse(self.network.predict(X, batch_size=512, verbose=0)[:, 0])
 
+    def predict_windows(self, windows: np.ndarray) -> np.ndarray:
+        """Predicted raw log returns for a batch of raw-return windows, shape (n, window)."""
+        w = np.asarray(windows, dtype=float)
+        if w.ndim != 2 or w.shape[1] != self.window:
+            raise ValueError(f"expected windows of exactly {self.window} returns, got shape {w.shape}")
+        z = self.scaler.transform(w)[..., None]
+        return self.scaler.inverse(self.network.predict(z, batch_size=1024, verbose=0)[:, 0])
+
     def predict_next(self, last_window: np.ndarray) -> float:
         """Predicted raw log return for the day after ``last_window`` (raw log returns).
 
@@ -68,8 +76,7 @@ class FittedModel:
         w = np.asarray(last_window, dtype=float)
         if w.shape != (self.window,):
             raise ValueError(f"expected a window of exactly {self.window} returns, got shape {w.shape}")
-        z = self.scaler.transform(w).reshape(1, self.window, 1)
-        return float(self.scaler.inverse(self.network.predict(z, verbose=0)[0, 0]))
+        return float(self.predict_windows(w[None, :])[0])
 
 
 def fit_model(returns: np.ndarray, train_end: int, val_end: int, cfg: ModelConfig, seed: int) -> FittedModel:

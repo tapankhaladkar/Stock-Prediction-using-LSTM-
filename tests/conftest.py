@@ -1,6 +1,9 @@
+import matplotlib
 import numpy as np
 import pandas as pd
 import pytest
+
+matplotlib.use("Agg")  # no display needed for plot smoke tests
 
 
 def make_tiingo_rows(n=120, split_at=30, factor=4.0, seed=0, start="2020-07-20"):
@@ -58,3 +61,20 @@ def session():
 @pytest.fixture(autouse=True)
 def _no_ambient_key(monkeypatch):
     monkeypatch.delenv("TIINGO_API_KEY", raising=False)
+
+
+def write_synthetic_tiingo_cache(path, start="2015-01-01", end="2025-09-30", split_date="2020-08-31", seed=42):
+    """A Tiingo-shaped CSV of *fake* prices with a real 4:1 split, for exercising the notebook
+    offline. Never a substitute for real data."""
+    rng = np.random.default_rng(seed)
+    dates = pd.bdate_range(start, end)
+    adj = 25 * np.exp(np.cumsum(rng.normal(0.0006, 0.014, len(dates))))
+    split_i = int(np.searchsorted(dates, pd.Timestamp(split_date)))
+    raw = adj.copy()
+    raw[:split_i] *= 4.0
+    df = pd.DataFrame({"date": dates, "close": raw, "high": raw * 1.01, "low": raw * 0.99, "open": raw,
+                       "volume": 1_000_000, "adjClose": adj, "adjHigh": adj * 1.01, "adjLow": adj * 0.99,
+                       "adjOpen": adj, "adjVolume": 4_000_000, "divCash": 0.0, "splitFactor": 1.0})
+    df.loc[split_i, "splitFactor"] = 4.0
+    path.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(path, index=False)

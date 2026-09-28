@@ -139,3 +139,13 @@ def test_pipeline_detects_real_skill_when_it_exists():
     assert tab.loc["LSTM", "RMSE_vs_Persistence"] < 0.97
     assert tab.loc["LSTM", "ratio_CI95_hi"] < 1.0
     assert tab.loc["LSTM", "DirAcc_%"] > 55
+
+
+def test_predict_windows_matches_predict_returns_and_rejects_wrong_widths():
+    r = log_returns(synthetic_prices()).to_numpy()
+    m = fit_model(r, 500, 600, TINY, seed=0)
+    from stock_lstm.features import make_windows
+    X, _, _ = make_windows(r, 10, 620, 630)
+    np.testing.assert_allclose(m.predict_windows(X[..., 0]), m.predict_returns(r, 620, 630), atol=1e-6)
+    with pytest.raises(ValueError, match="exactly 10"):
+        m.predict_windows(X[..., 0][:, :8])          # 8 columns instead of 10, the old 98-vs-100 slip

@@ -87,6 +87,10 @@ def validate_prices(prices: pd.Series, max_abs_log_return: float = MAX_ABS_DAILY
         )
 
 
+def cache_path(ticker: str, start: str, end: str, cache_dir: str | Path = "data") -> Path:
+    return Path(cache_dir) / f"{ticker.upper()}_{start}_{end}.csv"
+
+
 def load_prices(ticker: str, start: str, end: str, cache_dir: str | Path = "data",
                 refresh: bool = False, api_key: str | None = None,
                 session: requests.Session | None = None) -> pd.Series:
@@ -97,7 +101,7 @@ def load_prices(ticker: str, start: str, end: str, cache_dir: str | Path = "data
     Tiingo whenever a new dividend or split is paid, so re-downloading later can change
     old values slightly; keep the cached CSV if you need exact reproducibility.
     """
-    path = Path(cache_dir) / f"{ticker.upper()}_{start}_{end}.csv"
+    path = cache_path(ticker, start, end, cache_dir)
     if path.exists() and not refresh:
         frame = pd.read_csv(path, parse_dates=["date"])
     else:

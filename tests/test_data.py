@@ -32,7 +32,8 @@ def test_second_load_uses_cache_and_needs_no_network_or_key(tmp_path, session):
     again = data.load_prices("AAPL", "2020-07-20", "2020-12-31", cache_dir=tmp_path,
                              session=FakeSession(status_code=500))  # would blow up if used
     pd.testing.assert_series_equal(first, again, check_freq=False)
-    assert (tmp_path / "AAPL_2020-07-20_2020-12-31.csv").exists()
+    assert data.cache_path("aapl", "2020-07-20", "2020-12-31", tmp_path).exists()
+    assert data.cache_path("aapl", "2020-07-20", "2020-12-31", tmp_path).name == "AAPL_2020-07-20_2020-12-31.csv"
 
 
 def test_refresh_forces_a_new_download(tmp_path, session):
