@@ -153,3 +153,29 @@ def test_shipped_env_example_is_parseable_and_empty():
     from pathlib import Path
     example = Path(__file__).resolve().parents[1] / ".env.example"
     assert data._read_dotenv(example) == {"TIINGO_API_KEY": ""}
+
+
+# ---- keyless requests: an outside proxy/credential store may attach the Authorization header -----
+
+def test_without_a_local_key_the_request_is_sent_with_no_authorization_header(tmp_path, session):
+    prices = data.load_prices("AAPL", "2020-07-20", "2020-12-31", cache_dir=tmp_path, session=session)
+    assert len(prices) > 0
+    assert "Authorization" not in session.calls[0]["headers"]
+
+
+def test_a_local_key_is_still_sent_when_present(tmp_path, session, monkeypatch):
+    monkeypatch.setenv("TIINGO_API_KEY", KEY)
+    data.load_prices("AAPL", "2020-07-20", "2020-12-31", cache_dir=tmp_path, session=session)
+    assert session.calls[0]["headers"]["Authorization"] == f"Token {KEY}"
+
+
+def test_rejection_without_a_local_key_explains_both_ways_to_authenticate():
+    with pytest.raises(PermissionError) as err:
+        data.fetch_tiingo("AAPL", "2020-01-01", "2020-02-01", session=FakeSession(status_code=401))
+    msg = str(err.value)
+    assert "no local API key" in msg and "TIINGO_API_KEY" in msg and "api.tiingo.com" in msg
+
+
+def test_rejection_with_a_local_key_blames_the_key_not_the_setup():
+    with pytest.raises(PermissionError, match="rejected the API key"):
+        data.fetch_tiingo("AAPL", "2020-01-01", "2020-02-01", api_key=KEY, session=FakeSession(status_code=403))

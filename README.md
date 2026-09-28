@@ -13,6 +13,9 @@ ARIMA, using walk-forward validation and confidence intervals.
 1. Get a free [Tiingo API key](https://www.tiingo.com/account/api/token) and provide it as `TIINGO_API_KEY`:
    an environment variable, a line in a git-ignored `.env` file (copy `.env.example`), or a Colab secret of
    that name. The environment variable wins if both are set. Never paste the key into a notebook cell or commit it.
+   In a Claude Code cloud environment you can instead add an **API credential** for `api.tiingo.com` with the header
+   `Authorization: Token <key>`; the key then never enters the session, and with no local key the download is sent
+   without one and authenticated on the way out.
 2. Install dependencies (skip on Colab, where they are preinstalled): `pip install -r requirements.txt`
 3. Open `notebooks/Apple_Stock_Prediction.ipynb` and run all cells. The first run downloads prices into `data/`;
    later runs read that file and need no key or network.

@@ -73,6 +73,20 @@ def get_api_key(api_key: str | None = None) -> str:
     return key
 
 
+def _auth_headers(api_key: str | None) -> dict[str, str]:
+    """``Authorization`` header from a local key, or none if no key is set locally.
+
+    Sending without a local key is deliberate: a sandbox or proxy can attach the credential
+    to matching requests after they leave the session (e.g. Claude Code cloud "API
+    credentials"), and then no key ever exists here. If nothing attaches one, Tiingo answers
+    401/403 and ``fetch_tiingo`` raises an error explaining both ways to fix it.
+    """
+    try:
+        return {"Authorization": f"Token {get_api_key(api_key)}"}
+    except RuntimeError:
+        return {}
+
+
 def fetch_tiingo(ticker: str, start: str, end: str, api_key: str | None = None,
                  session: requests.Session | None = None) -> pd.DataFrame:
     """Download daily bars for ``ticker`` between ``start`` and ``end`` (inclusive).
@@ -81,14 +95,21 @@ def fetch_tiingo(ticker: str, start: str, end: str, api_key: str | None = None,
     exception messages.
     """
     http = session or requests
+    headers = _auth_headers(api_key)
     resp = http.get(
         TIINGO_URL.format(ticker=ticker.lower()),
         params={"startDate": start, "endDate": end, "format": "json", "resampleFreq": "daily"},
-        headers={"Authorization": f"Token {get_api_key(api_key)}"},
+        headers=headers,
         timeout=30,
     )
     if resp.status_code in (401, 403):
-        raise PermissionError("Tiingo rejected the API key (HTTP %d). Check or rotate the key." % resp.status_code)
+        if headers:
+            raise PermissionError("Tiingo rejected the API key (HTTP %d). Check or rotate the key." % resp.status_code)
+        raise PermissionError(
+            f"Tiingo rejected the request (HTTP {resp.status_code}) and no local API key is set. Either set "
+            f"{API_KEY_VAR} (environment variable, .env file or Colab secret), or configure an API credential "
+            "for api.tiingo.com that adds the header 'Authorization: Token <key>'."
+        )
     if resp.status_code == 404:
         raise ValueError(f"Tiingo does not know ticker {ticker!r} (HTTP 404).")
     resp.raise_for_status()
