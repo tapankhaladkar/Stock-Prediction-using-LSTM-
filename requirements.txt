@@ -1,0 +1,11 @@
+# Runtime dependencies for the notebook and the stock_lstm package.
+# On Colab these are preinstalled. The full test suite passes (Python 3.11) both on the newest
+# versions (numpy 2.4, pandas 3.0, statsmodels 0.15, TensorFlow 2.21) and at the lower bounds
+# below (numpy 1.26.4, pandas 2.1.4, matplotlib 3.8.4, statsmodels 0.14.0, TensorFlow 2.16.2).
+# Keras 3 is required, hence tensorflow>=2.16.
+numpy>=1.26
+pandas>=2.1
+matplotlib>=3.8
+requests>=2.31
+statsmodels>=0.14
+tensorflow>=2.16

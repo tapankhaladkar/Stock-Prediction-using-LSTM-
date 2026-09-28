@@ -37,8 +37,8 @@ def plot_walk_forward(prices: pd.Series, predictions: pd.DataFrame, models=("LST
 def plot_ratio_ci(table: pd.DataFrame, reference: str = "Persistence"):
     """RMSE relative to the reference model, with 95% bootstrap intervals. Below 1 is better."""
     t = table.drop(index=reference)
-    ratio = t[f"RMSE_vs_{reference}"]
-    err = [ratio - t["ratio_CI95_lo"], t["ratio_CI95_hi"] - ratio]
+    ratio = t[f"RMSE_vs_{reference}"].to_numpy()
+    err = [ratio - t["ratio_CI95_lo"].to_numpy(), t["ratio_CI95_hi"].to_numpy() - ratio]
     fig, ax = plt.subplots(figsize=(7, 0.6 * len(t) + 1.6))
     ax.errorbar(ratio, range(len(t)), xerr=err, fmt="o", capsize=4)
     ax.axvline(1.0, color="red", ls="--", label=f"same as {reference}")
