@@ -1,0 +1,18 @@
+# Secrets - never commit API keys
+.env
+*.key
+
+# Downloaded market data (see README: check the data provider's terms before committing it)
+data/
+
+# Python / tooling
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints/
+.venv/
+venv/
+
+# Trained model artifacts
+*.keras
+*.h5

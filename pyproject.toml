@@ -1,0 +1,4 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = ["slow: trains several small LSTMs (tens of seconds); deselect with -m 'not slow'"]
