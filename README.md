@@ -24,7 +24,9 @@ ARIMA, using walk-forward validation and confidence intervals.
 the evaluation plus 3 for the forecast (CPU is fine; expect several minutes).
 
 The notebook is committed **without outputs**: every table, plot and verdict is generated when you run it, and it is
-the source of truth. The [results snapshot](#results-snapshot) below is a dated copy of one run.
+the source of truth. The [results snapshot](#results-snapshot) below is a dated copy of one run, rendered from
+`docs/results.json` (run the notebook with `STOCK_LSTM_SAVE_RESULTS=1` to regenerate the JSON, the figures and that
+section together).
 
 ## Method
 
@@ -35,60 +37,65 @@ the source of truth. The [results snapshot](#results-snapshot) below is a dated 
 | Model | 2-layer LSTM (32 units each), 60-day window, Adam, MSE | Small on purpose: ~2,000 samples per fold. |
 | Leakage control | Scaler and weights use only data before each fold's test block; a separate validation slice drives early stopping | The test days never influence training, scaling or when to stop. |
 | Evaluation | Expanding-window **walk-forward**, 5 folds x ~6 months, 3 seeds per fold (mean = "LSTM"), all models scored on the same days | Covers several regimes instead of one split; shows run-to-run noise. |
-| Baselines | Persistence, MA(5), MA(20), ARIMA(1,1,1) | An LSTM claims skill only relative to these. |
+| Baselines | Persistence, **drift** (persistence + average past return), MA(5), MA(20), ARIMA(1,1,1) | An LSTM claims skill only relative to these. Drift matters because stocks rise on average: a model that only learned that would look skilful in a rising market. |
 | Metrics | RMSE, MAE, MAPE, directional accuracy, all in **dollars**; RMSE ratio vs persistence with a 95% block-bootstrap interval | A ratio below 1 whose interval contains 1 is not evidence of skill. Direction is compared with the up-day base rate. |
 | Forecast | 30 trading days as a **fan of simulated paths**: each step adds a resampled out-of-sample residual before feeding the return back | One recursive line overstates precision; errors compound. |
-| Backtest | The forecast is scored against the closes that actually followed the origin date, vs "flat at the last close", plus band coverage | A forecast that is never checked is just a picture. It is one path, so it illustrates rather than proves. |
+| Backtest | The live forecast is scored against the closes that actually followed the origin, vs "flat" and vs drift. A **rolling-origin backtest** then repeats a 30-day forecast from ~28 origins across the test days (each using its own fold's model and only information available then) and reports RMSE ratios, win rates and band coverage with block-bootstrap intervals | One path illustrates but proves nothing; many origins give an interval and a check on whether the 80% / 95% bands are calibrated. |
 
 ## Results snapshot
 
-> One dated run, not a guarantee. Re-running the notebook regenerates everything; the data provider rewrites adjusted
-> history whenever a dividend is paid, and seeds or hardware differ, so a later run will differ slightly.
+<!-- results:start -->
 
-**Setup (run on 2026-09-28):** AAPL adjusted daily closes, 2015-01-02 to 2025-09-30. Models saw only data up to
-2025-07-18 (2,651 trading days). Evaluation: 5 walk-forward folds x 126 days = **630 out-of-sample days** (about
-Jan 2023 to Jul 2025), 3 seeds, 60-day window, 2 x 32-unit LSTM. The data step matters: raw `close` contains the
-4:1 split as a fake crash, `adjClose` does not.
+> One dated run, not a guarantee. This section is rendered from [`docs/results.json`](docs/results.json) by `python -m stock_lstm.report`, so no number in it is typed by hand; run the notebook with `STOCK_LSTM_SAVE_RESULTS=1` to regenerate it. The data provider rewrites adjusted history whenever a dividend is paid, and seeds or hardware differ, so a later run will differ slightly.
 
-![Raw vs adjusted close for AAPL: the 2020-08-31 split is a cliff in raw close and invisible in adjusted close](docs/images/raw_vs_adjusted_close.png)
+**Setup (run on 2026-09-29):** AAPL adjusted daily closes, 2015-01-02 to 2026-09-28. Models saw only data up to 2026-08-14 (2,921 trading days); the 30 later days were held out to score the live forecast. One-step evaluation: 5 walk-forward folds x 126 days = **630 out-of-sample days** (2024-02-09 to 2026-08-14), 3 seeds, 60-day window, LSTM 32 x 32 units. The data step matters: raw `close` contains the 4:1 split as a fake crash, `adjClose` does not.
+
+![Raw vs adjusted close: the 2020-08-31 split is a cliff in raw close and invisible in adjusted close](docs/images/raw_vs_adjusted_close.png)
 
 **Next-day accuracy** (dollars; every model scored on the same 630 days):
 
 | Model | RMSE | MAE | RMSE vs persistence (95% interval) | Direction correct |
 |---|---|---|---|---|
-| Persistence ("tomorrow = today") | $3.217 | $2.177 | 1.000 | n/a |
-| LSTM (3-seed mean) | $3.223 | $2.172 | 1.002 (0.997 to 1.007) | 53.8% |
-| ARIMA(1,1,1) | $3.237 | $2.197 | 1.006 (0.999 to 1.014) | 49.4% |
-| MA(5) | $5.003 | $3.611 | 1.555 (1.443 to 1.669) | 47.1% |
-| MA(20) | $8.156 | $6.386 | 2.535 (2.203 to 2.959) | 47.1% |
+| Persistence ("tomorrow = today") | $4.072 | $2.771 | 1.000 | n/a |
+| Drift (persistence + average past return) | $4.070 | $2.758 | 0.999 (0.995 to 1.004) | 54.7% |
+| LSTM (3-seed mean) | $4.074 | $2.762 | 1.000 (0.997 to 1.004) | 54.4% |
+| ARIMA(1,1,1) | $4.097 | $2.792 | 1.006 (1.000 to 1.012) | 47.2% |
+| MA(5) | $6.369 | $4.631 | 1.564 (1.466 to 1.667) | 48.8% |
+| MA(20) | $10.513 | $8.481 | 2.581 (2.267 to 2.934) | 47.1% |
 
-55.3% of these days closed up, so always guessing "up" would score 55.3% on direction.
+54.7% of these days closed up, so always guessing "up" would score 54.7% on direction.
 
 ![One-step-ahead predictions on the walk-forward test days: the LSTM line lies on top of the persistence line](docs/images/walk_forward_predictions.png)
 
-![RMSE relative to persistence with 95% intervals: LSTM and ARIMA sit on the reference line, moving averages are clearly worse](docs/images/rmse_ratio_vs_persistence.png)
+![RMSE relative to persistence with 95% intervals for each model](docs/images/rmse_ratio_vs_persistence.png)
 
-**Reading it.** The LSTM is statistically indistinguishable from "tomorrow = today" (RMSE ratio 1.002, interval 0.997
-to 1.007), and its predicted line overlaps the persistence line: it behaves as a one-day-lagged copy of the price. In
-every fold it lands within about $0.05 of persistence, and individual seeds differ by about $0.005. This is a finding
-about this setup (a univariate LSTM on past returns, one asset, this period). The test suite's positive control shows
-the same evaluation does detect skill when it exists, so "no edge" here is a result, not a tooling failure. It is not
-proof that no model could work.
+**Reading it.** The LSTM is statistically indistinguishable from "tomorrow = today" (RMSE ratio 1.000, 95% interval 0.997 to 1.004). Its RMSE is $4.074, against $4.070 for drift and $4.072 for persistence; Drift has the lowest RMSE of the models compared (by a margin within noise). In every fold the LSTM's RMSE is within $0.011 of persistence's, and individual seeds differ by $0.002. On this data the LSTM shows no measurable edge over the naive baseline. This is a finding about this setup (a univariate LSTM on past returns, one asset, this period). The test suite's positive control shows the same evaluation does detect skill when it exists, so a null result is a result, not a tooling failure; it is not proof that no model could work.
 
-**30-day forecast vs what happened.** From the $210.16 adjusted close on 2025-07-18 the forecast reached $217.96 on
-day 30 (+3.7%, 80% band $192 to $245); the stock actually closed at $231.28 (+10.1%).
+**Live 30-day forecast vs what happened.** From the $305.93 adjusted close on 2026-08-14 the forecast reached $311.66 on day 30 (+1.9%, 80% band $278 to $350); the stock actually closed at $338.40 (+10.6%).
 
-![30-day forecast fan from 2025-07-18 with the realised closes overlaid](docs/images/forecast_vs_actual.png)
+![30-day forecast fan from 2026-08-14 with the realised closes overlaid](docs/images/forecast_vs_actual.png)
 
-Over those 30 days the forecast's RMSE was $10.42 against $14.19 for "flat at the last close". That is not skill: a
-plain constant-drift path at the historical average return (+2.5% over 30 days) scores $11.59 (computed outside the
-notebook, which does not include a drift baseline), so most of the advantage is upward drift in a rising market. Both bands covered all 30 realised closes, which on one strongly
-autocorrelated path says almost nothing about calibration.
+Over those 30 days the forecast's RMSE was $18.43, against $21.40 for "flat at the last close" and $16.74 for constant drift at the average past return (+2.6% over the horizon). It beat "flat" but not drift, so its advantage over "flat" is drift, not skill. Its bands covered 97% (80% band) and 100% (95% band) of the realised closes; on one strongly autocorrelated path that says little about calibration, which is what the rolling-origin backtest below is for.
+
+**Rolling-origin backtest.** 30 forecasts of 30 days, one every 21 trading days from 2024-02-08 to 2026-07-16, each made by the model of its own fold (trained before the days it forecasts) using only information available at its origin, and scored on what actually followed:
+
+| | RMSE | vs flat (95% interval) | vs drift (95% interval) |
+|---|---|---|---|
+| Model forecast | $13.80 | 0.975 (0.902 to 1.035) | 1.005 (0.994 to 1.019) |
+| Constant drift | $13.73 | 0.970 (0.891 to 1.034) | 1.000 |
+| Flat at last close | $14.16 | 1.000 | 1.031 (0.967 to 1.123) |
+
+The model forecast's RMSE is 0.975x "flat" (0.902 to 1.035): statistically indistinguishable from "flat"; and 1.005x drift (0.994 to 1.019): statistically indistinguishable from drift. It had the lower error on 53% of origins against "flat" and 43% against drift. The 80% band contained 83% of realised closes (95% interval 73 to 92) and the 95% band 96% (91 to 100): both bands covered about as often as intended. Windows overlap, so intervals are block bootstraps over origins, not over days.
+
+![Per-origin 30-day error relative to the flat and drift benchmarks, and band coverage vs nominal](docs/images/rolling_origin_backtest.png)
+
+<!-- results:end -->
 
 ## Repository layout
 
 ```
 notebooks/Apple_Stock_Prediction.ipynb   the analysis (run this)
+docs/                                    results.json and the README figures
 stock_lstm/
   data.py         Tiingo download, cache, validation (rejects unadjusted splits)
   features.py     log returns, train-only scaler, leak-free windowing
@@ -98,6 +105,8 @@ stock_lstm/
   evaluate.py     score several models on identical days
   walkforward.py  fold layout and the evaluation loop
   forecast.py     path simulation and backtest scoring
+  rolling.py      rolling-origin backtest of the multi-day forecast
+  report.py       results.json and the README results section
   plots.py        labelled figures
 tests/            pytest suite (see below)
 ```
@@ -116,6 +125,7 @@ Besides unit tests, the suite checks the pipeline itself:
 * **Negative control:** on a synthetic random walk the LSTM must look no better than persistence.
 * **Positive control:** on synthetic returns with real autocorrelation it must beat persistence, with an interval
   below 1. Together these show the evaluation can tell "no skill" from "skill".
+* **Rolling-origin honesty:** each forecast uses only its own fold's model and information available at its origin (tampering with later prices changes nothing it produced, including band width), and the bands cover ~80% / ~95% when the noise model is right.
 * **Regression tests** for the bugs in the first version (see below), verified to fail when the bug is reintroduced.
 * A hygiene test that fails on committed credentials or committed notebook outputs.
 

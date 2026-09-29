@@ -156,7 +156,7 @@ def render_markdown(results: dict, image_dir: str = "docs/images") -> str:
         reading.append(f"Its RMSE is {_usd(lstm['RMSE'], 3)}, against {_usd(drift['RMSE'], 3)} for drift and "
                        f"{_usd(pers['RMSE'], 3)} for persistence; {labels.get(best, best).split(' (')[0]} has the lowest "
                        f"RMSE of the models compared{noise}. ")
-    reading.append(f"In every fold the LSTM's RMSE is within {_usd(fold_gap, 2)} of persistence's, and individual "
+    reading.append(f"In every fold the LSTM's RMSE is within {_usd(fold_gap, 3)} of persistence's, and individual "
                    f"seeds differ by {_usd(seed_spread, 3)}. ")
     if v == "statistically indistinguishable from":
         reading.append("On this data the LSTM shows no measurable edge over the naive baseline. ")

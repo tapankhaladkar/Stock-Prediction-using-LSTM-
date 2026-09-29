@@ -162,6 +162,14 @@ def test_a_winner_by_a_hair_is_flagged_as_within_noise_only_when_the_verdict_say
     assert "LSTM has the lowest RMSE of the models compared." in text and "within noise)" not in text
 
 
+def test_fold_gap_is_not_rounded_down_into_a_smaller_claim():
+    """A largest fold gap of $0.011 must not be reported as 'within $0.01'."""
+    res = fake_results()
+    res["one_step"]["per_fold"] = {"LSTM": [2.0, 3.011], "Persistence": [2.0, 3.0]}
+    text = report.render_markdown(res)
+    assert "within $0.011 of persistence's" in text and "within $0.01 of" not in text
+
+
 def test_render_is_deterministic():
     assert report.render_markdown(fake_results()) == report.render_markdown(fake_results())
 
