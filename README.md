@@ -155,20 +155,6 @@ The first version (still in git history) had problems, all fixed here:
 * **No baseline,** scaler fit on all data, test set used as validation, single unseeded run.
 * **README did not match the code** (different data source, date range, window, split, architecture and epochs).
 
-## Security note: rotate the exposed API key
-
-The first version committed a live Tiingo API key in the notebooks' code and saved output. It has been removed from
-the current files, **but it remains in this repository's git history**, which is public. Treat it as compromised:
-**revoke it in your Tiingo account and create a new one.** Removing it from history (for example with
-`git filter-repo`, followed by a force-push) is optional once it is revoked, and only hides it from casual browsing;
-anyone who already cloned or forked the repo still has it.
-
-## Credits
-
-The first version followed a widely circulated Tiingo + Keras stacked-LSTM tutorial pattern; credit to that
-tutorial's author for the original idea. The pipeline in this repository has since been rebuilt around the
-evaluation described above.
-
 ## License
 
 MIT, see [LICENSE](LICENSE).
