@@ -17,6 +17,18 @@ def persistence(prices: pd.Series) -> pd.Series:
     return prices.shift(1).rename("Persistence")
 
 
+def drift(prices: pd.Series) -> pd.Series:
+    """Persistence plus the average daily log return seen so far ("random walk with drift").
+
+    The prediction for day t is ``P[t-1] * exp(mean of the log returns strictly before t)``.
+    Stocks rise on average, so this is a fairer bar than persistence: a model that only
+    learned "prices go up a bit" would otherwise look skilful in a rising market.
+    """
+    rets = np.log(prices).diff()                     # rets[t] = log(P[t] / P[t-1]); NaN on row 0
+    mu = rets.expanding().mean().shift(1)            # mean of returns up to t-1: never sees day t
+    return (prices.shift(1) * np.exp(mu)).rename("Drift")
+
+
 def moving_average(prices: pd.Series, window: int) -> pd.Series:
     # shift(1): the average of the `window` closes strictly before t.
     return prices.shift(1).rolling(window).mean().rename(f"MA({window})")

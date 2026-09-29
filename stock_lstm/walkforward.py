@@ -91,7 +91,7 @@ def run_walk_forward(prices: pd.Series, model_cfg: ModelConfig = ModelConfig(),
     prev_price = prices.shift(1).loc[dates].to_numpy()
     folds = make_folds(len(r), wf, model_cfg.window)
 
-    static = {"Persistence": baselines.persistence(prices)}
+    static = {"Persistence": baselines.persistence(prices), "Drift": baselines.drift(prices)}
     for w in wf.ma_windows:
         static[f"MA({w})"] = baselines.moving_average(prices, w)
 
