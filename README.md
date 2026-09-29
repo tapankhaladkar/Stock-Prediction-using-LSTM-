@@ -23,8 +23,8 @@ ARIMA, using walk-forward validation and confidence intervals.
 `STOCK_LSTM_QUICK=1` runs a tiny model on 2 folds for a fast smoke test. The full run trains 15 small networks for
 the evaluation plus 3 for the forecast (CPU is fine; expect several minutes).
 
-The notebook is committed **without outputs**: every table, plot and verdict is generated when you run it, so no
-number in this repository can go stale or be copied by hand incorrectly.
+The notebook is committed **without outputs**: every table, plot and verdict is generated when you run it, and it is
+the source of truth. The [results snapshot](#results-snapshot) below is a dated copy of one run.
 
 ## Method
 
@@ -39,6 +39,51 @@ number in this repository can go stale or be copied by hand incorrectly.
 | Metrics | RMSE, MAE, MAPE, directional accuracy, all in **dollars**; RMSE ratio vs persistence with a 95% block-bootstrap interval | A ratio below 1 whose interval contains 1 is not evidence of skill. Direction is compared with the up-day base rate. |
 | Forecast | 30 trading days as a **fan of simulated paths**: each step adds a resampled out-of-sample residual before feeding the return back | One recursive line overstates precision; errors compound. |
 | Backtest | The forecast is scored against the closes that actually followed the origin date, vs "flat at the last close", plus band coverage | A forecast that is never checked is just a picture. It is one path, so it illustrates rather than proves. |
+
+## Results snapshot
+
+> One dated run, not a guarantee. Re-running the notebook regenerates everything; the data provider rewrites adjusted
+> history whenever a dividend is paid, and seeds or hardware differ, so a later run will differ slightly.
+
+**Setup (run on 2026-09-28):** AAPL adjusted daily closes, 2015-01-02 to 2025-09-30. Models saw only data up to
+2025-07-18 (2,651 trading days). Evaluation: 5 walk-forward folds x 126 days = **630 out-of-sample days** (about
+Jan 2023 to Jul 2025), 3 seeds, 60-day window, 2 x 32-unit LSTM. The data step matters: raw `close` contains the
+4:1 split as a fake crash, `adjClose` does not.
+
+![Raw vs adjusted close for AAPL: the 2020-08-31 split is a cliff in raw close and invisible in adjusted close](docs/images/raw_vs_adjusted_close.png)
+
+**Next-day accuracy** (dollars; every model scored on the same 630 days):
+
+| Model | RMSE | MAE | RMSE vs persistence (95% interval) | Direction correct |
+|---|---|---|---|---|
+| Persistence ("tomorrow = today") | $3.217 | $2.177 | 1.000 | n/a |
+| LSTM (3-seed mean) | $3.223 | $2.172 | 1.002 (0.997 to 1.007) | 53.8% |
+| ARIMA(1,1,1) | $3.237 | $2.197 | 1.006 (0.999 to 1.014) | 49.4% |
+| MA(5) | $5.003 | $3.611 | 1.555 (1.443 to 1.669) | 47.1% |
+| MA(20) | $8.156 | $6.386 | 2.535 (2.203 to 2.959) | 47.1% |
+
+55.3% of these days closed up, so always guessing "up" would score 55.3% on direction.
+
+![One-step-ahead predictions on the walk-forward test days: the LSTM line lies on top of the persistence line](docs/images/walk_forward_predictions.png)
+
+![RMSE relative to persistence with 95% intervals: LSTM and ARIMA sit on the reference line, moving averages are clearly worse](docs/images/rmse_ratio_vs_persistence.png)
+
+**Reading it.** The LSTM is statistically indistinguishable from "tomorrow = today" (RMSE ratio 1.002, interval 0.997
+to 1.007), and its predicted line overlaps the persistence line: it behaves as a one-day-lagged copy of the price. In
+every fold it lands within about $0.05 of persistence, and individual seeds differ by about $0.005. This is a finding
+about this setup (a univariate LSTM on past returns, one asset, this period). The test suite's positive control shows
+the same evaluation does detect skill when it exists, so "no edge" here is a result, not a tooling failure. It is not
+proof that no model could work.
+
+**30-day forecast vs what happened.** From the $210.16 adjusted close on 2025-07-18 the forecast reached $217.96 on
+day 30 (+3.7%, 80% band $192 to $245); the stock actually closed at $231.28 (+10.1%).
+
+![30-day forecast fan from 2025-07-18 with the realised closes overlaid](docs/images/forecast_vs_actual.png)
+
+Over those 30 days the forecast's RMSE was $10.42 against $14.19 for "flat at the last close". That is not skill: a
+plain constant-drift path at the historical average return (+2.5% over 30 days) scores $11.59 (computed outside the
+notebook, which does not include a drift baseline), so most of the advantage is upward drift in a rising market. Both bands covered all 30 realised closes, which on one strongly
+autocorrelated path says almost nothing about calibration.
 
 ## Repository layout
 
@@ -83,7 +128,8 @@ Besides unit tests, the suite checks the pipeline itself:
 * Predicting tomorrow's move from past prices alone is a very low signal-to-noise problem. If the notebook reports
   an interval containing 1.0, that is the expected outcome, not a bug.
 * Univariate, no transaction costs, slippage or position sizing: a forecasting exercise, not a trading strategy.
-* Verified here on synthetic data and unit tests. Run the notebook yourself to see results on real AAPL prices.
+* The results snapshot is one run of one configuration. Its figures plot Tiingo-derived prices; check Tiingo's terms
+  if you redistribute them, and remove `docs/images/` if they do not allow it.
 
 ## What changed from the first version
 

@@ -63,3 +63,13 @@ def test_readme_tells_owners_to_revoke_the_leaked_key():
     owner); the README must tell people to treat it as compromised."""
     readme = (ROOT / "README.md").read_text()
     assert "revoke" in readme.lower() and "history" in readme.lower()
+
+
+def test_readme_image_links_point_to_files_that_exist():
+    """A results section with broken images is worse than none."""
+    readme = (ROOT / "README.md").read_text()
+    links = re.findall(r"!\[[^\]]*\]\(([^)\s]+)\)", readme)
+    assert links, "README is expected to embed the results figures"
+    local = [link for link in links if not link.startswith(("http://", "https://"))]
+    missing = [link for link in local if not (ROOT / link).is_file()]
+    assert not missing, f"README images not found: {missing}"
