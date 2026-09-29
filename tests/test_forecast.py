@@ -105,11 +105,12 @@ def test_residuals_from_predictions_is_log_ratio():
 
 # ---- scoring against what actually happened ---------------------------------------------------
 
-def _fc(point, spread=1.0, n=400):
+def _fc(point, spread=1.0, n=400, drift=None):
     point = np.asarray(point, dtype=float)
     rng = np.random.default_rng(0)
     paths = point + rng.normal(0, spread, size=(n, len(point)))
-    return fcm.Forecast(ORIGIN, origin_price=100.0, point=point, paths=paths)
+    return fcm.Forecast(ORIGIN, origin_price=100.0, point=point, paths=paths,
+                        drift_path=None if drift is None else np.asarray(drift, dtype=float))
 
 
 def _actual(values):
@@ -187,3 +188,46 @@ def test_fan_bands_are_calibrated_when_the_noise_model_is_right():
         lo, hi = fc.band(level)
         covered = np.mean((truth >= lo[-1]) & (truth <= hi[-1]))
         assert covered == pytest.approx(level, abs=0.03)
+
+
+# ---- constant-drift benchmark -----------------------------------------------------------------
+
+def test_forecast_carries_a_drift_path_grown_at_the_mean_return_before_the_origin():
+    r = np.full(80, 0.002)
+    fc = fcm.make_forecast([Stub(5, zeros)], r, 100.0, ORIGIN, residuals=np.zeros(3), horizon=6, n_paths=8)
+    np.testing.assert_allclose(fc.drift_path, 100.0 * np.exp(0.002 * np.arange(1, 7)))
+
+
+def test_drift_path_ignores_the_model_and_depends_only_on_the_returns_given():
+    rng = np.random.default_rng(5)
+    r = rng.normal(0.001, 0.01, 200)
+    a = fcm.make_forecast([Stub(5, zeros)], r, 100.0, ORIGIN, np.zeros(3), horizon=5, n_paths=6)
+    b = fcm.make_forecast([Stub(5, half_of_last)], r, 100.0, ORIGIN, np.zeros(3), horizon=5, n_paths=6)
+    np.testing.assert_array_equal(a.drift_path, b.drift_path)         # same returns -> same benchmark
+    c = fcm.make_forecast([Stub(5, zeros)], r[:150], 100.0, ORIGIN, np.zeros(3), horizon=5, n_paths=6)
+    assert not np.allclose(a.drift_path, c.drift_path)                # different history -> different mean
+
+
+def test_score_reports_the_drift_benchmark_when_the_forecast_has_one():
+    point, drift = [101.0, 102.0, 103.0], [100.5, 101.0, 101.5]
+    table, s = fcm.score_forecast(_fc(point, drift=drift), _actual(drift))   # reality follows the drift exactly
+    assert list(table.columns[:4]) == ["actual", "forecast", "flat_baseline", "drift_baseline"]
+    assert s["RMSE_drift"] == 0 and s["RMSE_ratio_vs_drift"] == float("inf")
+    assert s["drift_move_%"] == pytest.approx(1.5)
+    assert s["RMSE_forecast"] > 0 and s["RMSE_flat"] > 0
+
+
+def test_score_ratio_vs_drift_is_nan_when_both_are_perfect_and_absent_without_a_drift_path():
+    _, s = fcm.score_forecast(_fc([101.0, 102.0], drift=[101.0, 102.0]), _actual([101.0, 102.0]))
+    assert np.isnan(s["RMSE_ratio_vs_drift"])
+    _, s = fcm.score_forecast(_fc([101.0, 102.0]), _actual([101.0, 102.0]))
+    assert "RMSE_drift" not in s and "RMSE_ratio_vs_drift" not in s
+
+
+def test_drift_is_the_fairer_bar_in_a_rising_market():
+    """Reality rises steadily; a forecast that just drifts up beats 'flat' but is no better than drift."""
+    actual = _actual(100.0 * np.exp(0.003 * np.arange(1, 31)))
+    drift = 100.0 * np.exp(0.003 * np.arange(1, 31))
+    _, s = fcm.score_forecast(_fc(drift, drift=drift), actual)
+    assert s["RMSE_ratio_vs_flat"] < 0.1                              # looks like a huge win over flat...
+    assert s["RMSE_forecast"] == pytest.approx(s["RMSE_drift"], abs=1e-9)   # ...but it is just drift

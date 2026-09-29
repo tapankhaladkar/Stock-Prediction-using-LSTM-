@@ -112,6 +112,7 @@ def test_no_prediction_depends_on_the_future_end_to_end():
 
     d = px.index[d_pos]
     models = [c for c in base.columns if c != "fold"]
+    assert {"LSTM", "Persistence", "Drift"} <= set(models)
     pd.testing.assert_frame_equal(base.loc[:d, models], alt.loc[:d, models])
     assert not np.allclose(base.loc[d:, "LSTM"].iloc[1:], alt.loc[d:, "LSTM"].iloc[1:])
 

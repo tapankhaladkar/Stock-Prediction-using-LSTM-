@@ -8,6 +8,8 @@ from pathlib import Path
 import nbformat
 import pytest
 
+from stock_lstm import report
+
 ROOT = Path(__file__).resolve().parents[1]
 TEXT_SUFFIXES = {".py", ".ipynb", ".md", ".txt", ".toml", ".cfg", ".ini", ".yml", ".yaml", ".json", ".example"}
 SKIP_DIRS = {".git", "data", ".venv", "venv", "__pycache__", ".pytest_cache", ".ipynb_checkpoints"}
@@ -73,3 +75,17 @@ def test_readme_image_links_point_to_files_that_exist():
     local = [link for link in links if not link.startswith(("http://", "https://"))]
     missing = [link for link in local if not (ROOT / link).is_file()]
     assert not missing, f"README images not found: {missing}"
+
+
+def test_readme_results_section_is_exactly_what_docs_results_json_renders():
+    """The section is generated, never edited by hand: if this fails, run `python -m stock_lstm.report`
+    (or re-run the notebook with STOCK_LSTM_SAVE_RESULTS=1) and commit the result."""
+    results = report.load_results(ROOT / "docs" / "results.json")
+    assert report.update_readme(ROOT / "README.md", results, check=True), \
+        "README results section is out of sync with docs/results.json; run: python -m stock_lstm.report"
+
+
+def test_results_json_is_strict_json_without_nan():
+    def reject(token):
+        raise AssertionError(f"non-standard JSON constant {token} in docs/results.json")
+    json.loads((ROOT / "docs" / "results.json").read_text(), parse_constant=reject)

@@ -67,6 +67,33 @@ def score(actual, pred, prev) -> dict:
     }
 
 
+def _block_resample_indices(n: int, block: int, n_boot: int, seed: int) -> np.ndarray:
+    """Moving-block bootstrap: (n_boot, n) indices made of consecutive runs of ``block`` units."""
+    block = max(1, min(block, n))
+    rng = np.random.default_rng(seed)
+    n_blocks = -(-n // block)
+    starts = rng.integers(0, n - block + 1, size=(n_boot, n_blocks))
+    return (starts[:, :, None] + np.arange(block)).reshape(n_boot, -1)[:, :n]
+
+
+def bootstrap_mse_ratio(se_model, se_base, block: int = 10, n_boot: int = 2000, seed: int = 0,
+                        level: float = 0.95) -> tuple[float, float]:
+    """Moving-block bootstrap CI for sqrt(mean(se_model) / mean(se_base)).
+
+    ``se_*`` are squared errors per unit: days for one-step forecasts, or whole forecast origins
+    for multi-day forecasts. Neighbouring units are correlated (overlapping windows, volatility
+    clusters), hence blocks of consecutive units instead of single ones.
+    """
+    m = np.asarray(se_model, dtype=float)
+    b = np.asarray(se_base, dtype=float)
+    if m.ndim != 1 or m.shape != b.shape or m.size == 0:
+        raise ValueError(f"expected two non-empty 1-D arrays of equal length, got {m.shape} and {b.shape}")
+    idx = _block_resample_indices(len(m), block, n_boot, seed)
+    ratios = np.sqrt(m[idx].mean(axis=1) / b[idx].mean(axis=1))
+    lo, hi = np.quantile(ratios, [(1 - level) / 2, 1 - (1 - level) / 2])
+    return float(lo), float(hi)
+
+
 def bootstrap_rmse_ratio(actual, pred_model, pred_base, block: int = 10, n_boot: int = 2000,
                          seed: int = 0, level: float = 0.95) -> tuple[float, float]:
     """Moving-block bootstrap CI for RMSE(model) / RMSE(baseline).
@@ -76,13 +103,16 @@ def bootstrap_rmse_ratio(actual, pred_model, pred_base, block: int = 10, n_boot:
     """
     a, m = _pair(actual, pred_model)
     _, b = _pair(actual, pred_base)
-    se_m, se_b = (a - m) ** 2, (a - b) ** 2
-    n = len(a)
-    block = max(1, min(block, n))
-    rng = np.random.default_rng(seed)
-    n_blocks = -(-n // block)
-    starts = rng.integers(0, n - block + 1, size=(n_boot, n_blocks))
-    idx = (starts[:, :, None] + np.arange(block)).reshape(n_boot, -1)[:, :n]
-    ratios = np.sqrt(se_m[idx].mean(axis=1) / se_b[idx].mean(axis=1))
-    lo, hi = np.quantile(ratios, [(1 - level) / 2, 1 - (1 - level) / 2])
+    return bootstrap_mse_ratio((a - m) ** 2, (a - b) ** 2, block=block, n_boot=n_boot, seed=seed, level=level)
+
+
+def bootstrap_mean_ci(values, block: int = 3, n_boot: int = 2000, seed: int = 0,
+                      level: float = 0.95) -> tuple[float, float]:
+    """Moving-block bootstrap CI for the mean of ``values`` (one number per unit, e.g. per origin)."""
+    v = np.asarray(values, dtype=float)
+    if v.ndim != 1 or v.size == 0:
+        raise ValueError("values must be a non-empty 1-D array")
+    idx = _block_resample_indices(len(v), block, n_boot, seed)
+    means = v[idx].mean(axis=1)
+    lo, hi = np.quantile(means, [(1 - level) / 2, 1 - (1 - level) / 2])
     return float(lo), float(hi)
