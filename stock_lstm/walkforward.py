@@ -60,6 +60,8 @@ class WalkForwardResult:
     predictions: pd.DataFrame                    # one row per test day; columns = models + "fold"
     seed_predictions: dict[int, pd.Series]       # LSTM prediction per seed (LSTM column is their mean)
     fold_info: list[dict] = field(default_factory=list)
+    folds: list[Fold] = field(default_factory=list)
+    fold_models: dict[int, list] = field(default_factory=dict)   # fold index -> fitted models, one per seed
 
     def summary(self, prices: pd.Series, **kw) -> pd.DataFrame:
         models = [c for c in self.predictions.columns if c != "fold"]
@@ -96,12 +98,15 @@ def run_walk_forward(prices: pd.Series, model_cfg: ModelConfig = ModelConfig(),
         static[f"MA({w})"] = baselines.moving_average(prices, w)
 
     frames, seed_parts, info = [], {s: [] for s in range(wf.n_seeds)}, []
+    fold_models: dict[int, list] = {}
     for f in folds:
         test = slice(f.val_end, f.test_end)
         test_dates = dates[test]
         per_seed = []
+        fold_models[f.index] = []
         for seed in range(wf.n_seeds):
             m = fit_model(r, f.train_end, f.val_end, model_cfg, seed=seed)
+            fold_models[f.index].append(m)
             pred_r = m.predict_returns(r, f.val_end, f.test_end)
             price_pred = pd.Series(prev_price[test] * np.exp(pred_r), index=test_dates)
             per_seed.append(price_pred)
@@ -126,4 +131,6 @@ def run_walk_forward(prices: pd.Series, model_cfg: ModelConfig = ModelConfig(),
         predictions=preds,
         seed_predictions={s: pd.concat(p) for s, p in seed_parts.items()},
         fold_info=info,
+        folds=folds,
+        fold_models=fold_models,
     )

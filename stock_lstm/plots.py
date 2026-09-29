@@ -74,3 +74,32 @@ def plot_forecast(history: pd.Series, fc: Forecast, scored: pd.DataFrame | None 
     ax.legend(loc="best", fontsize=8)
     fig.tight_layout()
     return fig
+
+
+def plot_rolling_backtest(result, coverage: dict | None = None, ticker: str = "AAPL"):
+    """Left: per-origin 30-day RMSE relative to the model-free benchmarks (below 1 = forecast better).
+    Right: how often realised closes fell inside the 80% / 95% bands, with 95% intervals."""
+    o = result.origins
+    if coverage is None:
+        _, coverage = result.summary()
+    horizon = result.config.horizon
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4.2), gridspec_kw={"width_ratios": [2.2, 1]})
+    ax1.plot(o["origin_date"], o["RMSE_forecast"] / o["RMSE_flat"], "o-", ms=4, lw=1, label="forecast / flat")
+    ax1.plot(o["origin_date"], o["RMSE_forecast"] / o["RMSE_drift"], "s-", ms=4, lw=1, label="forecast / drift")
+    ax1.axhline(1.0, color="red", ls="--", lw=1)
+    ax1.set(title=f"{ticker}: {horizon}-day forecast error per origin (below the line = forecast better)",
+            xlabel="Forecast origin", ylabel="RMSE ratio")
+    ax1.legend(fontsize=8)
+
+    levels = sorted(coverage)
+    means = [coverage[k]["mean_%"] for k in levels]
+    err = [[coverage[k]["mean_%"] - coverage[k]["lo_%"] for k in levels],
+           [coverage[k]["hi_%"] - coverage[k]["mean_%"] for k in levels]]
+    y = range(len(levels))
+    ax2.errorbar(means, y, xerr=err, fmt="o", capsize=4, label="measured")
+    ax2.scatter(levels, y, marker="|", s=400, color="red", label="nominal", zorder=3)
+    ax2.set_yticks(list(y), [f"{k}% band" for k in levels])
+    ax2.set(title="Band coverage of realised closes", xlabel="% of closes inside the band", xlim=(50, 100))
+    ax2.legend(fontsize=8, loc="lower left")
+    fig.tight_layout()
+    return fig
